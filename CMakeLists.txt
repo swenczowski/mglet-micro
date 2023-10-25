@@ -17,15 +17,6 @@ else ( MPI_Fortran_HAVE_F08_MODULE )
     message( FATAL_ERROR "MPI Library does not support MPI_f08" )
 endif ( MPI_Fortran_HAVE_F08_MODULE )
 
-set(HDF5_PREFER_PARALLEL TRUE)
-set(HDF5_USE_STATIC_LIBRARIES FALSE)
-find_package( HDF5 COMPONENTS C Fortran REQUIRED )
-if ( HDF5_IS_PARALLEL )
-    message( STATUS "HDF5 Library supports parallel I/O" )
-else ( HDF5_IS_PARALLEL )
-    message( WARNING "HDF5 does not support parallel I/O" )
-endif ( HDF5_IS_PARALLEL )
-
 # CMake build options
 option(REAL64 "Compile MGLET with double precision support" OFF)
 if ( REAL64 )
@@ -75,13 +66,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Flags for builds
 if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Common flags for all builds and languages
-    set(MGLET_COMMON_FLAGS -Wall -Wextra -Wpedantic -Werror -Wno-maybe-uninitialized)
+    set(MGLET_COMMON_FLAGS -fopenmp -foffload=nvptx-none -fPIC)
 
     # Flags for Release (=optimized builds), all languages
-    set(MGLET_RELEASE_FLAGS -O3 -fopenmp-simd)
+    set(MGLET_RELEASE_FLAGS )
 
     # Debug flags for all languages
-    set(MGLET_DEBUG_FLAGS -Og -g -D_MGLET_DEBUG_)
+    set(MGLET_DEBUG_FLAGS )
 
     # Common Fortran flags
     #
@@ -102,10 +93,11 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Fortran 2023 will have the maximum line length increased to 10000
     # (ten thousand) characters, so this is a problem that will disappear
     # as soon as a Fortran 2023 compiler is available.
-    set(MGLET_COMMON_FORTRAN_FLAGS -std=f2018 -fimplicit-none -ffpe-trap=invalid,zero,overflow -Wno-unused-dummy-argument -Wno-uninitialized -ffree-line-length-none)
+    set(MGLET_COMMON_FORTRAN_FLAGS -ffree-line-length-none)
 
     # Fortran-specific debug flags
-    set(MGLET_DEBUG_FORTRAN_FLAGS -fcheck=all)
+    set(MGLET_DEBUG_FORTRAN_FLAGS )
+
 elseif (CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
     # Flags for Release (=optimized builds), all languages
     set(MGLET_RELEASE_FLAGS -O3 -qopenmp-simd)

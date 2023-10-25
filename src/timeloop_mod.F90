@@ -1,7 +1,8 @@
 MODULE timeloop_mod
 
+    ! DUMMY VERSION
+
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_char, c_double, c_ptr, c_long_long
-    USE HDF5
     USE MPI_f08
 
     IMPLICIT NONE(type, external)

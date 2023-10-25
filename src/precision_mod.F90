@@ -1,7 +1,6 @@
 MODULE precision_mod
 
     USE, INTRINSIC :: ISO_FORTRAN_ENV
-    USE HDF5
 
     USE MPI_f08
 
@@ -35,8 +34,8 @@ MODULE precision_mod
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_int
 
     ! HDF5 type for REAL and INTEGER
-    INTEGER(HID_T), PROTECTED :: mglet_hdf5_real
-    INTEGER(HID_T), PROTECTED :: mglet_hdf5_int
+    ! INTEGER(HID_T), PROTECTED :: mglet_hdf5_real
+    ! INTEGER(HID_T), PROTECTED :: mglet_hdf5_int
 
     ! MPI datatype to communicate INTEGER(hsize_t)
     TYPE(MPI_Datatype) :: mglet_mpi_hsize_t
@@ -56,7 +55,7 @@ MODULE precision_mod
 
     ! Public data items
     PUBLIC :: init_precision, finish_precision, realk, intk, c_intk, &
-        c_realk, mglet_hdf5_real, mglet_hdf5_int, pi, eps, int8, int16, &
+        c_realk, pi, eps, int8, int16, &
         int32, int64, real32, real64, real_bytes, int_bytes, &
         mglet_filename_max, neps
 
@@ -65,25 +64,6 @@ MODULE precision_mod
 CONTAINS
     SUBROUTINE init_precision()
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: error_unit
-
-        ! Local variables
-        INTEGER(hsize_t), PARAMETER :: dummy_hsize_t = 0
-        INTEGER(int32) :: size
-
-        ! Create HDF5 types
-        mglet_hdf5_real = h5kind_to_type(realk, H5_REAL_KIND)
-        mglet_hdf5_int = h5kind_to_type(intk, H5_INTEGER_KIND)
-
-        ! Set mglet_mpi_hsize_t
-        size = STORAGE_SIZE(dummy_hsize_t)/8
-        IF (size == 8) THEN
-            mglet_mpi_hsize_t = MPI_INTEGER8
-        ELSE IF (size == 4) THEN
-            mglet_mpi_hsize_t = MPI_INTEGER
-        ELSE
-            WRITE(error_unit, '("precision_mod, unknown size: ", I0)') size
-            STOP 255
-        END IF
 
         ! Set MPI data types
 #ifdef _MGLET_DOUBLE_PRECISION_

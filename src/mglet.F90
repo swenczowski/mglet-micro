@@ -1,13 +1,25 @@
 PROGRAM main
 
-    USE timeloop_mod, ONLY: init_timeloop, finish_timeloop, timeloop
+    USE field_mod
+    use omp_lib
 
-    ! This initialize the time loop. Reads the RUNINFO table in case of DCONT.
-    CALL init_timeloop()
+    INTEGER, PARAMETER :: len = 200000000
 
-    ! Run time loop
-    CALL timeloop()
+    TYPE(field_t) :: afield
+    integer :: num_devices,nteams,nthreads
+    logical :: initial_device
 
-    CALL finish_timeloop()
+    num_devices = omp_get_num_devices()
+    print *, "Number of available devices", num_devices
+
+    CALL afield%init("AVG", len )
+
+    CALL afield%update_host( 1, len )
+
+    WRITE(*,*) MAXVAL( afield%arr_host )
+    WRITE(*,*) MINVAL( afield%arr_host )
+    WRITE(*,*) afield%arr_host(1:6)
+
+    CALL afield%finish()
 
 END PROGRAM main
