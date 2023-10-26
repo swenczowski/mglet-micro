@@ -1,27 +1,31 @@
 message(STATUS "Checking if OpenMP threading works")
 
-find_package(OpenMP QUIET)
-set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_FLAGS})
+if ( THREADS )
 
-check_fortran_source_runs("
-PROGRAM main
-    USE omp_lib
-    IMPLICIT NONE
+    find_package(OpenMP QUIET)
+    set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_FLAGS})
 
-    INTEGER :: n
+    check_fortran_source_runs("
+    PROGRAM main
+        USE omp_lib
+        IMPLICIT NONE
 
-    CALL omp_set_num_threads(2)
+        INTEGER :: n
 
-    !$omp parallel private(n)
+        CALL omp_set_num_threads(2)
 
-    n = omp_get_num_threads()
-    IF ( n /= 2 ) THEN
-        STOP 9
-    END IF
+        !$omp parallel private(n)
 
-    !$omp end parallel
+        n = omp_get_num_threads()
+        IF ( n /= 2 ) THEN
+            STOP 9
+        END IF
 
-END PROGRAM" ASSUMED_OPENMP_OK SRC_EXT "F90")
-if(NOT ASSUMED_OPENMP_OK)
-    message(WARNING "Your Fortran compiler does not support OpenMP")
+        !$omp end parallel
+
+    END PROGRAM" ASSUMED_OPENMP_OK SRC_EXT "F90")
+    if(NOT ASSUMED_OPENMP_OK)
+        message(WARNING "Your Fortran compiler does not support OpenMP")
+    endif()
+
 endif()

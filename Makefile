@@ -2,8 +2,7 @@ FC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpif90
 CC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpicc
 
 FFLAGS=-c -g -fopenmp -foffload=nvptx-none
-LFLAGS=-fopenmp -foffload=nvptx-none
-
+LFLAGS=-fopenmp -foffload=nvptx-none -fPIC
 # unified memory management with -ta=tesla:cc80,managed
 # passing standard parallel Fortan operation to GPU -stdpar=gpu
 

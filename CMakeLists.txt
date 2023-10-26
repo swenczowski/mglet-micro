@@ -49,6 +49,8 @@ if ( THREADS )
     if ( OPENMP_FOUND )
         add_compile_definitions(_MGLET_OPENMP_=1)
         message( STATUS "Compiling MGLET with OpenMP thread parallelism" )
+        set(CMAKE_SHARED_LINKER_FLAGS "-fopenmp -foffload=nvptx-none -no-pie")
+        set(CMAKE_STATIC_LINKER_FLAGS "-fopenmp -foffload=nvptx-none -no-pie")
     else ( OPENMP_FOUND )
         message( WARNING "MGLET with threads requested but OpenMP not found" )
         message( STATUS "Compiling MGLET without OpenMP threads" )
@@ -93,7 +95,7 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Fortran 2023 will have the maximum line length increased to 10000
     # (ten thousand) characters, so this is a problem that will disappear
     # as soon as a Fortran 2023 compiler is available.
-    set(MGLET_COMMON_FORTRAN_FLAGS -ffree-line-length-none)
+    set(MGLET_COMMON_FORTRAN_FLAGS -ffree-line-length-none )
 
     # Fortran-specific debug flags
     set(MGLET_DEBUG_FORTRAN_FLAGS )
