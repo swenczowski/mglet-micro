@@ -26,7 +26,7 @@ PROGRAM main
     required = MPI_THREAD_MULTIPLE
     CALL MPI_Init_thread( required, provided )
     IF ( provided /= MPI_THREAD_MULTIPLE ) THEN
-        WRITE(*,*) "weak MPI"
+        WRITE(*,*) "weak MPI..."
     END IF
 
     CALL MPI_Comm_size(MPI_COMM_WORLD, size, ierr)
@@ -53,6 +53,7 @@ PROGRAM main
     tag = 123
     count = len
     IF ( rank == 0 ) THEN
+        ! GPU-aware MPI can now use the device pointer
         cptr = afield%arr_device
         CALL c_f_pointer(cptr, fptr, [len])
         CALL MPI_Send( fptr, count, &
@@ -60,6 +61,7 @@ PROGRAM main
     END IF
 
     IF ( rank == 1 ) THEN
+        ! GPU-aware MPI can now use the device pointer
         cptr = bfield%arr_device
         CALL c_f_pointer(cptr, fptr, [len])
         CALL MPI_Recv( fptr, count, &
