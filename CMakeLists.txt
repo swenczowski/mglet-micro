@@ -66,7 +66,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Flags for builds
 if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Common flags for all builds and languages
-    set(MGLET_COMMON_FLAGS -fopenmp -foffload=nvptx-none -fPIC)
+    set(MGLET_COMMON_FLAGS -fopenmp -foffload=nvptx-none )
 
     # Flags for Release (=optimized builds), all languages
     set(MGLET_RELEASE_FLAGS )

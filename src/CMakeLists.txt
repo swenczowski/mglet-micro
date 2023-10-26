@@ -19,11 +19,11 @@ set_source_files_properties(gpu_openmp_mod.F90 PROPERTIES LINK_FLAGS
 
 target_include_directories(mgletlib
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
-    PRIVATE ${OpenMP_Fortran_INCLUDE_PATH}
+#     PRIVATE ${OpenMP_Fortran_INCLUDE_PATH}
 )
 target_link_libraries(mgletlib
     PRIVATE ${MPI_Fortran_LIBRARIES}
-    PRIVATE ${OpenMP_Fortran_LIBRARIES}
+#     PRIVATE ${OpenMP_Fortran_LIBRARIES}
 )
 
 # Executable
@@ -36,12 +36,12 @@ add_executable(mglet
 
 target_include_directories(mglet
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
-    PRIVATE ${OpenMP_Fortran_INCLUDE_PATH}
+#     PRIVATE ${OpenMP_Fortran_INCLUDE_PATH}
 )
 target_link_libraries(mglet
     PRIVATE mgletlib
     PRIVATE ${MPI_Fortran_LIBRARIES}
-    PRIVATE ${OpenMP_Fortran_LIBRARIES}
+#     PRIVATE ${OpenMP_Fortran_LIBRARIES}
 )
 
 

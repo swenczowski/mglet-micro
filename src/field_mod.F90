@@ -4,7 +4,7 @@ MODULE field_mod
 
     USE precision_mod
     USE gpu_openmp_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_null_ptr
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_null_ptr, c_size_t
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -19,6 +19,7 @@ MODULE field_mod
         CHARACTER(len=nchar_name) :: name = REPEAT(" ", nchar_name)
         INTEGER(intk) :: length
 
+        ! data content on host and device
         REAL(realk), ALLOCATABLE :: arr_host(:)
         TYPE(c_ptr) :: arr_device = c_null_ptr
 

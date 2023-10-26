@@ -4,7 +4,7 @@ MODULE gpu_openmp_mod
 
     USE precision_mod, ONLY: intk, realk, real_bytes
     USE omp_lib
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_null_ptr, c_size_t, c_int, c_f_pointer, c_loc
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_null_ptr, c_size_t, c_int, c_f_pointer, c_loc, c_associated
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -12,8 +12,10 @@ MODULE gpu_openmp_mod
     INTEGER(intk), PARAMETER :: nchar_name = 16
     INTEGER(intk), PARAMETER :: nchar_desc = 32
     INTEGER(intk), PARAMETER :: nattr_max = 8
+    INTEGER(intk) :: my_device = -1
+    INTEGER(intk) :: my_host = -1
 
-    PUBLIC :: allocate_omp_device, deallocate_omp_device, memcp_omp_device_to_host
+    PUBLIC :: omp_init, allocate_omp_device, deallocate_omp_device, memcp_omp_device_to_host
 
     interface
         type(c_ptr) function omp_target_alloc(size, device_num) bind(c)
@@ -48,33 +50,58 @@ MODULE gpu_openmp_mod
 
 CONTAINS
 
+    SUBROUTINE omp_init( )
+        INTEGER(intk) :: ndevice
+        INTEGER(intk), PARAMETER :: myid = 0
+
+        ndevice = omp_get_num_devices()
+        WRITE(*,*) "ndevice = ", ndevice
+        ! consider moving to block allocation
+        my_device = mod( myid, ndevice )
+        CALL omp_set_default_device( my_device )
+        ! activates the device (initialization on demand)
+        !$omp target
+        !$omp end target
+        WRITE(*,*) "host device = ", omp_get_initial_device()
+        my_host = omp_get_initial_device()
+        WRITE(*,*) "target device = ", omp_get_default_device()
+        my_device = omp_get_default_device()
+
+    END SUBROUTINE omp_init
+
+
+
     SUBROUTINE allocate_omp_device( length, dev_pointer )
         INTEGER(intk), INTENT(in) :: length
-        TYPE(c_ptr), INTENT(inout) :: dev_pointer
+        TYPE(c_ptr), INTENT(out) :: dev_pointer
 
         ! local variable
         INTEGER(c_size_t) :: size
-        INTEGER(c_int), PARAMETER :: device_num = 0
-        INTEGER(intk) :: i
-        REAL(realk), POINTER :: fptr(:)
+        INTEGER(intk) :: i, j
+        REAL(realk), POINTER :: fptr(:,:)
+
+        ! important (otherwise invalid memory mapped)
+        NULLIFY( fptr )
 
         ! size in bytes
-        size = real_bytes * length
-        WRITE(*,*) size
+        size = INT(real_bytes,c_size_t) * INT(length,c_size_t)
 
         ! allocation on the device
-        dev_pointer = omp_target_alloc( size, device_num )
+        IF ( .not. c_associated(dev_pointer) ) THEN
+            dev_pointer = omp_target_alloc( size, my_device )
+        ELSE
+            WRITE(*,*) "ERROR: device pointer is already set"
+        END IF
 
-        !$omp target is_device_ptr(dev_pointer)
-        CALL c_f_pointer(dev_pointer, fptr, [length])
-
-        !$omp teams distribute parallel do
-        DO i = 1, length
-            ! stupid initialization
-            fptr(i) = REAL( i, realk )
+        !$omp target device(my_device) is_device_ptr(dev_pointer)
+        CALL c_f_pointer(dev_pointer, fptr, [length/2,2])
+        !$omp teams distribute parallel do collapse(2)
+        DO j = 1, 2
+            DO i = 1, length/2
+                fptr(i,j) = REAL( i*j, realk )
+            END DO
         END DO
         !$omp end teams distribute parallel do
-
         !$omp end target
 
     END SUBROUTINE allocate_omp_device
@@ -84,11 +111,8 @@ CONTAINS
     PURE SUBROUTINE deallocate_omp_device( dev_pointer )
         TYPE(c_ptr), INTENT(inout) :: dev_pointer
 
-        ! local variable
-        INTEGER(c_int), PARAMETER :: device_num = 0
-
         ! check of allocation
-        CALL omp_target_free( dev_pointer, device_num )
+        CALL omp_target_free( dev_pointer, my_device )
 
     END SUBROUTINE deallocate_omp_device
 
@@ -101,23 +125,27 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: offset
 
         ! local variable
-        INTEGER(c_int), PARAMETER :: device_num = 0
         INTEGER(c_int) :: err
         INTEGER(c_size_t) :: c_len, c_offset
         REAL(realk), POINTER :: host_fptr(:)
         TYPE(c_ptr) :: host_cptr
 
         ! conversion to c_ptr
+        NULLIFY( host_fptr )
         host_fptr => host_array
         host_cptr = C_LOC( host_fptr )
 
         ! conversion to c_size_t
         c_len = INT( length * real_bytes, c_size_t )
-        WRITE(*,*) c_len
         c_offset = INT( offset * real_bytes, c_size_t )
-        WRITE(*,*) c_offset
 
-        err = omp_target_memcpy( host_cptr, dev_cptr, c_len, c_offset, c_offset, 1, device_num )
+        ! copy back from the device
+        err = omp_target_memcpy( host_cptr, dev_cptr, &
+            c_len, c_offset, c_offset, my_host, my_device )
+
+        IF ( err /= 0 ) THEN
+            WRITE(*,*) "ERROR: copy to host failed"
+        END IF
 
     END SUBROUTINE memcp_omp_device_to_host
 
