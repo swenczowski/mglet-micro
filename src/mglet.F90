@@ -23,6 +23,7 @@ PROGRAM main
 
     NULLIFY( fptr )
 
+    ! launching MPI with threading support
     required = MPI_THREAD_MULTIPLE
     CALL MPI_Init_thread( required, provided )
     IF ( provided /= MPI_THREAD_MULTIPLE ) THEN
@@ -35,42 +36,45 @@ PROGRAM main
     CALL init_precision()
     CALL omp_init()
 
+    ! allocating fields (local and device)
     CALL afield%init("U", len )
     CALL bfield%init("V", len )
     CALL cfield%init("W", len )
     WRITE(*,*) "MemAllocs done."
 
+    ! filling one local field
     DO i = 1, len
         afield%arr_host(i) = real(i,realk)
     END DO
     WRITE(*,*) "A locally initialized."
 
+    ! pushing to device, overwriting on host, getting from device
     CALL afield%update_device( 1, len )
     afield%arr_host = 0.0
     CALL afield%update_host( 1, len )
     WRITE(*,*) "Back and forth finished."
 
+    ! communication with CUDA-aware MPI on casted device pointers
     tag = 123
     count = len
     IF ( rank == 0 ) THEN
-        ! GPU-aware MPI can now use the device pointer
         cptr = afield%arr_device
         CALL c_f_pointer(cptr, fptr, [len])
         CALL MPI_Send( fptr, count, &
         mglet_mpi_real, 1, tag, MPI_COMM_WORLD, ierr )
     END IF
-
     IF ( rank == 1 ) THEN
-        ! GPU-aware MPI can now use the device pointer
         cptr = bfield%arr_device
         CALL c_f_pointer(cptr, fptr, [len])
         CALL MPI_Recv( fptr, count, &
-        MPI_REAL, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr )
+        mglet_mpi_real, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr )
     END IF
 
+    ! getting all fields back to host
     CALL bfield%update_host( 1, len )
     CALL cfield%update_host( 1, len )
 
+    ! expectation: ( field B on rank 1 ) == ( field A on rank 0 )
     WRITE(*,*) MAXVAL( afield%arr_host )
     WRITE(*,*) MINVAL( afield%arr_host )
     WRITE(*,*) afield%arr_host(1:10)
