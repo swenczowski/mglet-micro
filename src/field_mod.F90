@@ -28,6 +28,7 @@ MODULE field_mod
         PROCEDURE :: init
         PROCEDURE :: finish
         PROCEDURE :: update_host
+        PROCEDURE :: update_device
         FINAL :: destructor
 
     END TYPE field_t
@@ -80,11 +81,22 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stop
 
         IF (.NOT. this%is_init) RETURN
-
-
-        CALL memcp_omp_device_to_host( this%arr_device, this%arr_host, stop-start+1, start-1 )
+        CALL memcp_omp_device_to_host( this%arr_device, &
+            this%arr_host, stop-start+1, start-1 )
 
     END SUBROUTINE update_host
+
+
+    SUBROUTINE update_device(this, start, stop)
+        CLASS(field_t), INTENT(inout) :: this
+        INTEGER(intk), INTENT(in) :: start
+        INTEGER(intk), INTENT(in) :: stop
+
+        IF (.NOT. this%is_init) RETURN
+        CALL memcp_omp_host_to_device( this%arr_host, &
+            this%arr_device, stop-start+1, start-1 )
+
+    END SUBROUTINE update_device
 
 
     ELEMENTAL SUBROUTINE destructor(this)

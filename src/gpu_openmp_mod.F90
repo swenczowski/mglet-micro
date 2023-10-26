@@ -15,7 +15,8 @@ MODULE gpu_openmp_mod
     INTEGER(intk) :: my_device = -1
     INTEGER(intk) :: my_host = -1
 
-    PUBLIC :: omp_init, allocate_omp_device, deallocate_omp_device, memcp_omp_device_to_host
+    PUBLIC :: omp_init, allocate_omp_device, deallocate_omp_device, &
+              memcp_omp_device_to_host, memcp_omp_host_to_device
 
     interface
         type(c_ptr) function omp_target_alloc(size, device_num) bind(c)
@@ -23,6 +24,14 @@ MODULE gpu_openmp_mod
             integer(c_size_t), value :: size
             integer(c_int), value :: device_num
         end function omp_target_alloc
+    end interface
+
+    interface
+        type(c_ptr) function omp_get_mapped_ptr(ptr, device_num) bind(c)
+            use, intrinsic :: iso_c_binding, only : c_ptr, c_int
+            type(c_ptr), value :: ptr
+            integer(c_int), value :: device_num
+        end function omp_get_mapped_ptr
     end interface
 
     interface
@@ -77,10 +86,10 @@ CONTAINS
 
         ! local variable
         INTEGER(c_size_t) :: size
-        INTEGER(intk) :: i, j
-        REAL(realk), POINTER :: fptr(:,:)
+        INTEGER(intk) :: i
+        REAL(realk), POINTER :: fptr(:)
 
-        ! important (otherwise invalid memory mapped)
+        ! important
         NULLIFY( fptr )
 
         ! size in bytes
@@ -94,12 +103,10 @@ CONTAINS
         END IF
 
         !$omp target device(my_device) is_device_ptr(dev_pointer)
-        CALL c_f_pointer(dev_pointer, fptr, [length/2,2])
-        !$omp teams distribute parallel do collapse(2)
-        DO j = 1, 2
-            DO i = 1, length/2
-                fptr(i,j) = REAL( i*j, realk )
-            END DO
+        CALL c_f_pointer(dev_pointer, fptr, [length])
+        !$omp teams distribute parallel do
+        DO i = 1, length
+            fptr(i) = REAL( 0.0, realk )
         END DO
         !$omp end teams distribute parallel do
         !$omp end target
@@ -111,8 +118,10 @@ CONTAINS
     PURE SUBROUTINE deallocate_omp_device( dev_pointer )
         TYPE(c_ptr), INTENT(inout) :: dev_pointer
 
+        !  $omp target exit data map(delete:sendbuf,recvbuf)
+
         ! check of allocation
-        CALL omp_target_free( dev_pointer, my_device )
+        ! CALL omp_target_free( dev_pointer, my_device )
 
     END SUBROUTINE deallocate_omp_device
 
@@ -150,17 +159,35 @@ CONTAINS
     END SUBROUTINE memcp_omp_device_to_host
 
 
+    SUBROUTINE memcp_omp_host_to_device( host_array, dev_cptr, length, offset )
+        INTEGER(intk), INTENT(in) :: length
+        TYPE(c_ptr), INTENT(in) :: dev_cptr
+        REAL(realk), INTENT(inout), TARGET :: host_array(length)
+        INTEGER(intk), INTENT(in) :: offset
 
-    ! int omp_target_memcpy(
-    !     void *dst,
-    !     const void *src,
-    !     size_t length,
-    !     size_t dst_offset,
-    !     size_t src_offset,
-    !     int dst_device_num,
-    !     int src_device_num
-    !   );
+        ! local variable
+        INTEGER(c_int) :: err
+        INTEGER(c_size_t) :: c_len, c_offset
+        REAL(realk), POINTER :: host_fptr(:)
+        TYPE(c_ptr) :: host_cptr
 
+        ! conversion to c_ptr
+        NULLIFY( host_fptr )
+        host_fptr => host_array
+        host_cptr = C_LOC( host_fptr )
 
+        ! conversion to c_size_t
+        c_len = INT( length * real_bytes, c_size_t )
+        c_offset = INT( offset * real_bytes, c_size_t )
+
+        ! copy back from the device
+        err = omp_target_memcpy( dev_cptr, host_cptr,  &
+            c_len, c_offset, c_offset, my_device, my_host )
+
+        IF ( err /= 0 ) THEN
+            WRITE(*,*) "ERROR: copy to device failed"
+        END IF
+
+    END SUBROUTINE memcp_omp_host_to_device
 
 END MODULE gpu_openmp_mod
