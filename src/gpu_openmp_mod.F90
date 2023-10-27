@@ -60,7 +60,7 @@ MODULE gpu_openmp_mod
 CONTAINS
 
     SUBROUTINE omp_init( )
-        INTEGER(intk) :: ndevice
+        INTEGER(intk) :: ndevice, nteams
         INTEGER(intk), PARAMETER :: myid = 0
 
         ndevice = omp_get_num_devices()
@@ -69,12 +69,16 @@ CONTAINS
         my_device = mod( myid, ndevice )
         CALL omp_set_default_device( my_device )
         ! activates the device (initialization on demand)
-        !$omp target
+        !$omp target map(nteams)
+        !$omp teams 
+        nteams = omp_get_num_teams()
+        !$omp end teams 
         !$omp end target
         WRITE(*,*) "host device = ", omp_get_initial_device()
         my_host = omp_get_initial_device()
         WRITE(*,*) "target device = ", omp_get_default_device()
         my_device = omp_get_default_device()
+        WRITE(*,*) "number of teams = ", nteams
 
     END SUBROUTINE omp_init
 
@@ -118,10 +122,8 @@ CONTAINS
     PURE SUBROUTINE deallocate_omp_device( dev_pointer )
         TYPE(c_ptr), INTENT(inout) :: dev_pointer
 
-        !  $omp target exit data map(delete:sendbuf,recvbuf)
-
         ! check of allocation
-        ! CALL omp_target_free( dev_pointer, my_device )
+        CALL omp_target_free( dev_pointer, my_device )
 
     END SUBROUTINE deallocate_omp_device
 

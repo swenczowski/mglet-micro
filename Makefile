@@ -10,10 +10,10 @@ LFLAGS=-fopenmp -foffload=nvptx-none -fPIC -lmpi_usempif08 -L/home/swenczowski/S
 # FFLAGS=-c -O2 -Minfo=all
 # LFLAGS=-O2 -Minfo=all -lnvToolsExt
 
-mglet.exe: mglet.o field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o
-	$(FC) mglet.o field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o $(LFLAGS) -o mglet.exe
+mglet.exe: mglet.o field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o gpu_stencil_mod.o
+	$(FC) mglet.o field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o gpu_stencil_mod.o $(LFLAGS) -o mglet.exe
 
-mglet.o: src/mglet.F90 field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o
+mglet.o: src/mglet.F90 field_mod.o gpu_openmp_mod.o precision_mod.o timeloop_mod.o gpu_stencil_mod.o
 	$(FC) $(FFLAGS) src/mglet.F90
 
 field_mod.o: src/field_mod.F90 gpu_openmp_mod.o precision_mod.o
@@ -27,6 +27,9 @@ precision_mod.o: src/precision_mod.F90
 
 timeloop_mod.o: src/timeloop_mod.F90
 	$(FC) $(FFLAGS) src/timeloop_mod.F90
+
+gpu_stencil_mod.o: src/gpu_stencil_mod.F90 gpu_openmp_mod.o precision_mod.o field_mod.o
+	$(FC) $(FFLAGS) src/gpu_stencil_mod.F90
 
 # Clean current directory, but leave executable file
 .PHONY: clean

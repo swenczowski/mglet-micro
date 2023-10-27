@@ -3,6 +3,7 @@ PROGRAM main
     USE field_mod
     USE precision_mod
     USE gpu_openmp_mod
+    USE gpu_stencil_mod
 
     use omp_lib
     use mpi_f08
@@ -10,13 +11,18 @@ PROGRAM main
 
     implicit none
 
-    INTEGER, PARAMETER :: len = 600 * 64*64*64
+    INTEGER, PARAMETER :: ngrid = 8*300
+    INTEGER, PARAMETER :: nx = 32
+    INTEGER, PARAMETER :: ny = 32
+    INTEGER, PARAMETER :: nz = 32
+    INTEGER, PARAMETER :: len = ngrid * nx * ny * nz
 
-    TYPE(field_t) :: afield, bfield, cfield
+    TYPE(field_t) :: afield, bfield, cfield, dfield, efield
     TYPE(MPI_STATUS) :: stat
     integer :: num_devices,nteams,nthreads
     integer :: i, rank, size, required, provided, tag, ierr, count
     logical :: initial_device
+    real :: start, finish
 
     REAL(realk), POINTER :: fptr(:)
     TYPE(c_ptr) :: cptr
@@ -40,52 +46,117 @@ PROGRAM main
     CALL afield%init("U", len )
     CALL bfield%init("V", len )
     CALL cfield%init("W", len )
+    CALL dfield%init("T1", len )
+    CALL efield%init("T2", len )
     WRITE(*,*) "MemAllocs done."
+
+
+
+    !!! TEST 1 --- memcpy check ---
 
     ! filling one local field
     DO i = 1, len
         afield%arr_host(i) = real(i,realk)
     END DO
-    WRITE(*,*) "A locally initialized."
 
     ! pushing to device, overwriting on host, getting from device
     CALL afield%update_device( 1, len )
     afield%arr_host = 0.0
     CALL afield%update_host( 1, len )
+
+    ! checking for difference
+    DO i = 1, len
+        IF ( afield%arr_host(i) /= real(i,realk) ) THEN 
+            WRITE(*,*) "Difference(a-a) = ", afield%arr_host(i) /= real(i,realk)
+        END IF
+    END DO
     WRITE(*,*) "Back and forth finished."
 
+
+
+    !!! TEST 2 --- MPI check ---
+
     ! communication with CUDA-aware MPI on casted device pointers
-    tag = 123
-    count = len
-    IF ( rank == 0 ) THEN
-        cptr = afield%arr_device
-        CALL c_f_pointer(cptr, fptr, [len])
-        CALL MPI_Send( fptr, count, &
-        mglet_mpi_real, 1, tag, MPI_COMM_WORLD, ierr )
-    END IF
-    IF ( rank == 1 ) THEN
-        cptr = bfield%arr_device
-        CALL c_f_pointer(cptr, fptr, [len])
-        CALL MPI_Recv( fptr, count, &
-        mglet_mpi_real, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr )
+    IF ( size > 1 ) THEN
+        tag = 123
+        count = len
+        IF ( rank == 0 ) THEN
+            cptr = afield%arr_device
+            CALL c_f_pointer(cptr, fptr, [len])
+            CALL MPI_Send( fptr, count, &
+            mglet_mpi_real, 1, tag, MPI_COMM_WORLD, ierr )
+        END IF
+        IF ( rank == 1 ) THEN
+            cptr = bfield%arr_device
+            CALL c_f_pointer(cptr, fptr, [len])
+            CALL MPI_Recv( fptr, count, &
+            mglet_mpi_real, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr )
+        END IF
     END IF
 
-    ! getting all fields back to host
-    CALL bfield%update_host( 1, len )
+    ! checking for difference
+    IF ( rank == 1 ) THEN
+        CALL bfield%update_host( 1, len )
+        DO i = 1, len
+            IF ( bfield%arr_host(i) /= real(i,realk) ) THEN 
+                WRITE(*,*) "Difference(b-b) = ", bfield%arr_host(i) /= real(i,realk)
+            END IF
+        END DO
+    END IF
+
+    WRITE(*,*) "MPI check finished."
+
+
+
+    !!! TEST 3 --- kernel check ---
+
+    ! version A) : call a stencil routine ("massive collapsing")
+    call cpu_time(start)
+    DO i = 1, 3
+        CALL stencil_version_a( afield%arr_device, cfield%arr_device, ngrid, nx, ny, nz )
+    END DO
+    call cpu_time(finish)
+    WRITE(*,*) finish-start
     CALL cfield%update_host( 1, len )
 
-    ! expectation: ( field B on rank 1 ) == ( field A on rank 0 )
-    WRITE(*,*) MAXVAL( afield%arr_host )
-    WRITE(*,*) MINVAL( afield%arr_host )
-    WRITE(*,*) afield%arr_host(1:10)
+    ! version B) : call a stencil routine ("teams and threads")
+    call cpu_time(start)
+    DO i = 1, 3
+        CALL stencil_version_b( afield%arr_device, dfield%arr_device, ngrid, nx, ny, nz )
+    END DO
+    call cpu_time(finish)
+    WRITE(*,*) finish-start
+    CALL dfield%update_host( 1, len )
 
-    WRITE(*,*) MAXVAL( bfield%arr_host )
-    WRITE(*,*) MINVAL( bfield%arr_host )
-    WRITE(*,*) bfield%arr_host(1:10)
+    ! version C) : call a stencil routine
+    call cpu_time(start)
+    DO i = 1, 3
+        CALL stencil_version_c( afield%arr_device, efield%arr_device, ngrid, nx, ny, nz )
+    END DO
+    call cpu_time(finish)
+    WRITE(*,*) finish-start
+    CALL efield%update_host( 1, len )
+
+    ! checking for difference
+    DO i = 1, len
+        IF ( cfield%arr_host(i) /= dfield%arr_host(i) ) THEN 
+            WRITE(*,*) "Difference(c-d) = ", cfield%arr_host(i) - dfield%arr_host(i)
+        END IF
+        IF ( cfield%arr_host(i) /= efield%arr_host(i) ) THEN 
+            WRITE(*,*) "Difference(c-e) = ", cfield%arr_host(i) - efield%arr_host(i)
+        END IF
+    END DO
+
+    WRITE(*,*) "Kernel check finished."
+
+
+    
 
     CALL afield%finish()
     CALL bfield%finish()
     CALL cfield%finish()
+    CALL dfield%finish()
+    CALL efield%finish()
 
     CALL MPI_Finalize( ierr )
 
