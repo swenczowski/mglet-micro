@@ -11,7 +11,7 @@ PROGRAM main
 
     implicit none
 
-    INTEGER, PARAMETER :: ngrid = 8*300
+    INTEGER, PARAMETER :: ngrid = 8*200
     INTEGER, PARAMETER :: nx = 32
     INTEGER, PARAMETER :: ny = 32
     INTEGER, PARAMETER :: nz = 32
@@ -110,6 +110,15 @@ PROGRAM main
 
     !!! TEST 3 --- kernel check ---
 
+    ! version CPU) : call a stencil routine
+    call cpu_time(start)
+    DO i = 1, 3
+        CALL stencil_version_cpu( afield%arr_host, efield%arr_host, ngrid, nx, ny, nz )
+    END DO
+    call cpu_time(finish)
+    WRITE(*,*) finish-start
+
+
     ! version A) : call a stencil routine ("massive collapsing")
     call cpu_time(start)
     DO i = 1, 3
@@ -128,7 +137,7 @@ PROGRAM main
     WRITE(*,*) finish-start
     CALL dfield%update_host( 1, len )
 
-    ! version C) : call a stencil routine
+    ! version C) : call a stencil routine ("teams and stencil routine with threads")
     call cpu_time(start)
     DO i = 1, 3
         CALL stencil_version_c( afield%arr_device, efield%arr_device, ngrid, nx, ny, nz )
@@ -136,6 +145,7 @@ PROGRAM main
     call cpu_time(finish)
     WRITE(*,*) finish-start
     CALL efield%update_host( 1, len )
+
 
     ! checking for difference
     DO i = 1, len
@@ -150,7 +160,7 @@ PROGRAM main
     WRITE(*,*) "Kernel check finished."
 
 
-    
+
 
     CALL afield%finish()
     CALL bfield%finish()

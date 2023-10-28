@@ -9,7 +9,8 @@ MODULE gpu_stencil_mod
 
     IMPLICIT NONE(type, external)
 
-    PUBLIC :: stencil_version_a, stencil_version_b, stencil_version_c
+    PUBLIC :: stencil_version_a, stencil_version_b, stencil_version_c, &
+        stencil_version_cpu
 
 CONTAINS
 
@@ -29,7 +30,7 @@ CONTAINS
 
         my_device = omp_get_default_device()
 
-        !$omp target device(my_device) is_device_ptr(dev_fi, dev_fo)
+        !$omp target is_device_ptr(dev_fi, dev_fo)
         CALL c_f_pointer(dev_fi, fptr_fi, [nx,ny,nz,ngr])
         CALL c_f_pointer(dev_fo, fptr_fo, [nx,ny,nz,ngr])
         !$omp teams distribute parallel do collapse(4)
@@ -133,7 +134,7 @@ CONTAINS
             cnz = nxyzp_list(3,l)
             cp = nxyzp_list(4,l)
             ntot = cnx * cny * cnz
-            ! calling kernel for this "team"
+            ! calling kernel for this "team" on one grid
             CALL grid_kernel( fptr_fi(cp:cp+ntot), fptr_fo(cp:cp+ntot), cnx, cny, cnz )
         END DO
         !$omp end teams distribute
@@ -167,6 +168,33 @@ CONTAINS
             END DO
             !$omp end parallel do
     END SUBROUTINE
+
+
+
+    SUBROUTINE stencil_version_cpu( host_fi, host_fo, ngr, nx, ny, nz )
+        INTEGER(intk), INTENT(in) :: ngr, nx, ny, nz
+        REAL(realk), INTENT(in) :: host_fi(nx,ny,nz,ngr)
+        REAL(realk), INTENT(out) :: host_fo(nx,ny,nz,ngr)
+        INTEGER :: i,j,k,l
+
+        !$omp target teams distribute map(host_fi,host_fo)
+        DO l = 1, ngr
+            !$omp parallel do collapse(3)
+            DO i = 2, nz-1
+                DO j = 2, ny-1
+                    DO k = 2, nx-1
+                        host_fo(k,j,i,l) = 1.0 / 6.0 * &
+                            ( host_fi(k+1,j,i,l) + host_fi(k-1,j,i,l) &
+                            + host_fi(k,j+1,i,l) + host_fi(k,j-1,i,l) &
+                            + host_fi(k,j,i-1,l) + host_fi(k,j,i-1,l) )
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+
+    END SUBROUTINE stencil_version_cpu
 
 
 
