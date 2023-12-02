@@ -41,7 +41,7 @@ CONTAINS
                         fptr_fo(k,j,i,l) = 1.0 / 6.0 * &
                             ( fptr_fi(k+1,j,i,l) + fptr_fi(k-1,j,i,l) &
                             + fptr_fi(k,j+1,i,l) + fptr_fi(k,j-1,i,l) &
-                            + fptr_fi(k,j,i-1,l) + fptr_fi(k,j,i-1,l) )
+                            + fptr_fi(k,j,i+1,l) + fptr_fi(k,j,i-1,l) )
                     END DO
                 END DO
             END DO
@@ -80,7 +80,7 @@ CONTAINS
                         fptr_fo(k,j,i,l) = 1.0 / 6.0 * &
                             ( fptr_fi(k+1,j,i,l) + fptr_fi(k-1,j,i,l) &
                             + fptr_fi(k,j+1,i,l) + fptr_fi(k,j-1,i,l) &
-                            + fptr_fi(k,j,i-1,l) + fptr_fi(k,j,i-1,l) )
+                            + fptr_fi(k,j,i+1,l) + fptr_fi(k,j,i-1,l) )
                     END DO
                 END DO
             END DO
@@ -162,13 +162,12 @@ CONTAINS
                         fptr3d_fo(k,j,i) = 1.0 / 6.0 * &
                             ( fptr3d_fi(k+1,j,i) + fptr3d_fi(k-1,j,i) &
                             + fptr3d_fi(k,j+1,i) + fptr3d_fi(k,j-1,i) &
-                            + fptr3d_fi(k,j,i-1) + fptr3d_fi(k,j,i-1) )
+                            + fptr3d_fi(k,j,i+1) + fptr3d_fi(k,j,i-1) )
                     END DO
                 END DO
             END DO
             !$omp end parallel do
     END SUBROUTINE
-
 
 
     SUBROUTINE stencil_version_cpu( host_fi, host_fo, ngr, nx, ny, nz )
@@ -177,24 +176,44 @@ CONTAINS
         REAL(realk), INTENT(out) :: host_fo(nx,ny,nz,ngr)
         INTEGER :: i,j,k,l
 
-        !$omp target teams distribute map(host_fi,host_fo)
         DO l = 1, ngr
-            !$omp parallel do collapse(3)
             DO i = 2, nz-1
                 DO j = 2, ny-1
                     DO k = 2, nx-1
                         host_fo(k,j,i,l) = 1.0 / 6.0 * &
                             ( host_fi(k+1,j,i,l) + host_fi(k-1,j,i,l) &
                             + host_fi(k,j+1,i,l) + host_fi(k,j-1,i,l) &
-                            + host_fi(k,j,i-1,l) + host_fi(k,j,i-1,l) )
+                            + host_fi(k,j,i+1,l) + host_fi(k,j,i-1,l) )
                     END DO
                 END DO
             END DO
-            !$omp end parallel do
         END DO
-        !$omp end target teams distribute
 
     END SUBROUTINE stencil_version_cpu
+
+
+    SUBROUTINE stencil_version_gpu( host_fi, host_fo, ngr, nx, ny, nz )
+        INTEGER(intk), INTENT(in) :: ngr, nx, ny, nz
+        REAL(realk), INTENT(in) :: host_fi(nx,ny,nz,ngr)
+        REAL(realk), INTENT(out) :: host_fo(nx,ny,nz,ngr)
+        INTEGER :: i,j,k,l
+
+        !$omp target teams distribute parallel do
+        DO l = 1, ngr
+            DO i = 2, nz-1
+                DO j = 2, ny-1
+                    DO k = 2, nx-1
+                        host_fo(k,j,i,l) = 1.0 / 6.0 * &
+                            ( host_fi(k+1,j,i,l) + host_fi(k-1,j,i,l) &
+                            + host_fi(k,j+1,i,l) + host_fi(k,j-1,i,l) &
+                            + host_fi(k,j,i+1,l) + host_fi(k,j,i-1,l) )
+                    END DO
+                END DO
+            END DO
+        END DO
+        !$omp end target teams distribute parallel do
+
+    END SUBROUTINE stencil_version_gpu
 
 
 

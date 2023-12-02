@@ -1,8 +1,11 @@
-FC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpif90
-CC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpicc
+# FC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpif90
+# CC=/home/swenczowski/Software/openmpi_gcc11_cuda/bin/mpicc
+
+FC=mpif90
+CC=mpicc
 
 FFLAGS=-c -g -fopenmp -foffload=nvptx-none
-LFLAGS=-fopenmp -foffload=nvptx-none -fPIC -lmpi_usempif08 -L/home/swenczowski/Software/openmpi_gcc11_cuda/lib64
+LFLAGS=-fopenmp -foffload=nvptx-none -fPIC -lmpi_usempif08
 # unified memory management with -ta=tesla:cc80,managed
 # passing standard parallel Fortan operation to GPU -stdpar=gpu
 

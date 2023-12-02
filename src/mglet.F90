@@ -11,13 +11,13 @@ PROGRAM main
 
     implicit none
 
-    INTEGER, PARAMETER :: ngrid = 8*200
+    INTEGER, PARAMETER :: ngrid = 2*200
     INTEGER, PARAMETER :: nx = 32
     INTEGER, PARAMETER :: ny = 32
     INTEGER, PARAMETER :: nz = 32
     INTEGER, PARAMETER :: len = ngrid * nx * ny * nz
 
-    TYPE(field_t) :: afield, bfield, cfield, dfield, efield
+    TYPE(field_t) :: afield, bfield, cfield, dfield, efield, ffield
     TYPE(MPI_STATUS) :: stat
     integer :: num_devices,nteams,nthreads
     integer :: i, rank, size, required, provided, tag, ierr, count
@@ -48,6 +48,7 @@ PROGRAM main
     CALL cfield%init("W", len )
     CALL dfield%init("T1", len )
     CALL efield%init("T2", len )
+    CALL ffield%init("T3", len )
     WRITE(*,*) "MemAllocs done."
 
 
@@ -113,10 +114,22 @@ PROGRAM main
     ! version CPU) : call a stencil routine
     call cpu_time(start)
     DO i = 1, 3
-        CALL stencil_version_cpu( afield%arr_host, efield%arr_host, ngrid, nx, ny, nz )
+        CALL stencil_version_cpu( afield%arr_host, ffield%arr_host, ngrid, nx, ny, nz )
     END DO
     call cpu_time(finish)
     WRITE(*,*) finish-start
+
+
+    !$omp target enter data map( to : afield, efield )
+
+    call cpu_time(start)
+    DO i = 1, 3
+        CALL stencil_version_gpu( afield%arr_host, efield%arr_host, ngrid, nx, ny, nz )
+    END DO
+    call cpu_time(finish)
+    WRITE(*,*) finish-start
+
+    !$omp target exit data map( from : afield, efield )
 
 
     ! version A) : call a stencil routine ("massive collapsing")
@@ -149,11 +162,14 @@ PROGRAM main
 
     ! checking for difference
     DO i = 1, len
-        IF ( cfield%arr_host(i) /= dfield%arr_host(i) ) THEN 
-            WRITE(*,*) "Difference(c-d) = ", cfield%arr_host(i) - dfield%arr_host(i)
+        IF ( ffield%arr_host(i) /= cfield%arr_host(i) ) THEN 
+            WRITE(*,*) "Difference(c-d) = ", ffield%arr_host(i) - cfield%arr_host(i)
         END IF
-        IF ( cfield%arr_host(i) /= efield%arr_host(i) ) THEN 
-            WRITE(*,*) "Difference(c-e) = ", cfield%arr_host(i) - efield%arr_host(i)
+        IF ( ffield%arr_host(i) /= dfield%arr_host(i) ) THEN 
+            WRITE(*,*) "Difference(c-d) = ", ffield%arr_host(i) - dfield%arr_host(i)
+        END IF
+        IF ( ffield%arr_host(i) /= efield%arr_host(i) ) THEN 
+            WRITE(*,*) "Difference(c-e) = ", ffield%arr_host(i) - efield%arr_host(i)
         END IF
     END DO
 
